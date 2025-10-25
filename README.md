@@ -428,4 +428,4 @@ For questions or issues:
 
 **Happy Scheduling! 🎉**
 
-*Built with ❤️ for UE23CS341A at PES University*
+*Built with ❤️ Team Ica-Sonic*
