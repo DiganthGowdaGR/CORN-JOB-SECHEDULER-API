@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block title %}{{ task.task_name }} - Task Scheduler{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-eye"></i> Task Details</h1>
+    <a href="/" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Back to Dashboard
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <!-- Task Information -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-info-circle"></i> Task Information</h5>
+                <span class="badge {% if task.status == 'active' %}bg-success{% else %}bg-secondary{% endif %} fs-6">
+                    {{ task.status }}
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong><i class="fas fa-tag"></i> Name:</strong><br>{{ task.task_name }}</p>
+                        <p><strong><i class="fas fa-clock"></i> Schedule:</strong><br><code>{{ task.schedule }}</code></p>
+                        {% if task.description %}
+                        <p><strong><i class="fas fa-info-circle"></i> Description:</strong><br>{{ task.description }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong><i class="fas fa-terminal"></i> Command:</strong><br><code>{{ task.command }}</code></p>
+                        {% if task.created_at %}
+                        <p><strong><i class="fas fa-calendar-plus"></i> Created:</strong><br>{{ task.created_at }}</p>
+                        {% endif %}
+                        {% if task.last_run %}
+                        <p><strong><i class="fas fa-history"></i> Last Run:</strong><br>{{ task.last_run }}</p>
+                        {% endif %}
+                        {% if task.next_run %}
+                        <p><strong><i class="fas fa-calendar-alt"></i> Next Run:</strong><br>{{ task.next_run }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Execution History -->
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-history"></i> Execution History</h5>
+            </div>
+            <div class="card-body">
+                {% if not history %}
+                <div class="text-center py-4">
+                    <i class="fas fa-clock fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">No executions yet</h5>
+                    <p class="text-muted">This task hasn't been executed yet. Wait for the scheduled time or check if the task is active.</p>
+                </div>
+                {% else %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th><i class="fas fa-calendar"></i> Execution Time</th>
+                                <th><i class="fas fa-flag"></i> Status</th>
+                                <th><i class="fas fa-terminal"></i> Output</th>
+                                <th><i class="fas fa-exclamation-triangle"></i> Error</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for execution in history %}
+                            <tr>
+                                <td>{{ execution.execution_time }}</td>
+                                <td>
+                                    {% if execution.status == 'success' %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check"></i> Success
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-danger">
+                                        <i class="fas fa-times"></i> Failed
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if execution.output %}
+                                    <button class="btn btn-sm btn-outline-info" type="button" 
+                                            data-bs-toggle="collapse" data-bs-target="#output-{{ execution.id }}">
+                                        <i class="fas fa-eye"></i> View Output
+                                    </button>
+                                    <div class="collapse mt-2" id="output-{{ execution.id }}">
+                                        <pre class="bg-light p-2 rounded small">{{ execution.output }}</pre>
+                                    </div>
+                                    {% else %}
+                                    <span class="text-muted">No output</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if execution.error %}
+                                    <button class="btn btn-sm btn-outline-danger" type="button" 
+                                            data-bs-toggle="collapse" data-bs-target="#error-{{ execution.id }}">
+                                        <i class="fas fa-exclamation-triangle"></i> View Error
+                                    </button>
+                                    <div class="collapse mt-2" id="error-{{ execution.id }}">
+                                        <pre class="bg-danger-subtle p-2 rounded small">{{ execution.error }}</pre>
+                                    </div>
+                                    {% else %}
+                                    <span class="text-muted">No errors</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <!-- Actions -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5><i class="fas fa-cogs"></i> Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <form method="post" action="/tasks/{{ task.id }}/toggle">
+                        <button type="submit" class="btn {% if task.status == 'active' %}btn-warning{% else %}btn-success{% endif %} w-100">
+                            <i class="fas fa-{% if task.status == 'active' %}pause{% else %}play{% endif %}"></i>
+                            {% if task.status == 'active' %}Pause Task{% else %}Resume Task{% endif %}
+                        </button>
+                    </form>
+                    
+                    <button type="button" class="btn btn-danger w-100" 
+                            onclick="confirmDelete({{ task.id }}, '{{ task.task_name }}')">
+                        <i class="fas fa-trash"></i> Delete Task
+                    </button>
+                    
+                    <a href="/" class="btn btn-secondary w-100">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-bar"></i> Statistics</h5>
+            </div>
+            <div class="card-body">
+                {% if history %}
+                {% set successful_runs = history|selectattr("status", "equalto", "success")|list|length %}
+                {% set failed_runs = history|selectattr("status", "equalto", "failed")|list|length %}
+                {% set total_runs = history|length %}
+                
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>Total Executions:</span>
+                        <strong>{{ total_runs }}</strong>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span class="text-success">Successful:</span>
+                        <strong class="text-success">{{ successful_runs }}</strong>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span class="text-danger">Failed:</span>
+                        <strong class="text-danger">{{ failed_runs }}</strong>
+                    </div>
+                </div>
+                
+                {% if total_runs > 0 %}
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>Success Rate:</span>
+                        <strong>{{ "%.1f"|format((successful_runs / total_runs) * 100) }}%</strong>
+                    </div>
+                    <div class="progress mt-1">
+                        <div class="progress-bar bg-success" style="width: {{ (successful_runs / total_runs) * 100 }}%"></div>
+                    </div>
+                </div>
+                {% endif %}
+                {% else %}
+                <p class="text-muted mb-0">No execution data available yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the task "<span id="taskName"></span>"?</p>
+                <p class="text-danger"><i class="fas fa-exclamation-triangle"></i> This action cannot be undone and will also delete all execution history.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="deleteForm" method="post" class="d-inline">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash"></i> Delete Task
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function confirmDelete(taskId, taskName) {
+    document.getElementById('taskName').textContent = taskName;
+    document.getElementById('deleteForm').action = '/tasks/' + taskId + '/delete';
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+</script>
+{% endblock %}

@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block title %}Create Task - Task Scheduler{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4><i class="fas fa-plus"></i> Create New Scheduled Task</h4>
+            </div>
+            <div class="card-body">
+                <form method="post" action="/create">
+                    <div class="mb-3">
+                        <label for="task_name" class="form-label">
+                            <i class="fas fa-tag"></i> Task Name *
+                        </label>
+                        <input type="text" class="form-control" id="task_name" name="task_name" 
+                               value="{{ task_name or '' }}" required
+                               placeholder="e.g., Daily Backup, Send Reports, Cleanup Logs">
+                        <div class="form-text">Give your task a descriptive name</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="command" class="form-label">
+                            <i class="fas fa-terminal"></i> Command to Execute *
+                        </label>
+                        <textarea class="form-control" id="command" name="command" rows="3" required
+                                  placeholder="e.g., python backup.py, echo Hello World, dir C:\temp">{{ command or '' }}</textarea>
+                        <div class="form-text">
+                            Enter the command or script to run. Examples:
+                            <ul class="mb-0 mt-1">
+                                <li><code>python my_script.py</code> - Run Python script</li>
+                                <li><code>echo Hello World</code> - Simple command</li>
+                                <li><code>powershell -File backup.ps1</code> - PowerShell script</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="schedule" class="form-label">
+                            <i class="fas fa-clock"></i> Schedule (Cron Expression) *
+                        </label>
+                        <input type="text" class="form-control" id="schedule" name="schedule" 
+                               value="{{ schedule or '' }}" required
+                               placeholder="e.g., */5 * * * * (every 5 minutes)">
+                        
+                        <!-- Quick Schedule Buttons -->
+                        <div class="mt-2">
+                            <small class="text-muted">Quick schedules:</small><br>
+                            <div class="btn-group-sm mt-1" role="group">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setSchedule('*/5 * * * *')">Every 5 min</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setSchedule('0 * * * *')">Hourly</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setSchedule('0 9 * * *')">Daily 9AM</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setSchedule('0 9 * * 1')">Weekly Mon</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setSchedule('0 0 1 * *')">Monthly</button>
+                            </div>
+                        </div>
+
+                        <!-- Email Task Templates -->
+                        <div class="mt-3">
+                            <small class="text-muted">📧 Email task templates:</small><br>
+                            <div class="btn-group-sm mt-1" role="group">
+                                <button type="button" class="btn btn-outline-info btn-sm" onclick="setEmailTask('daily_report')">Daily Report</button>
+                                <button type="button" class="btn btn-outline-info btn-sm" onclick="setEmailTask('weekly_summary')">Weekly Summary</button>
+                                <button type="button" class="btn btn-outline-info btn-sm" onclick="setEmailTask('custom_email')">Custom Email</button>
+                                <button type="button" class="btn btn-outline-info btn-sm" onclick="setEmailTask('alert')">Alert Email</button>
+                            </div>
+                        </div>
+
+                        <!-- Cron Help -->
+                        <div class="mt-2 p-3 bg-light rounded">
+                            <small class="cron-help">
+                                <strong>Cron Format:</strong> <code>minute hour day month day_of_week</code><br>
+                                <div class="row mt-2">
+                                    <div class="col-md-6">
+                                        <strong>Examples:</strong><br>
+                                        <code>*/5 * * * *</code> - Every 5 minutes<br>
+                                        <code>0 9 * * *</code> - Daily at 9:00 AM<br>
+                                        <code>0 9 * * 1</code> - Every Monday at 9 AM<br>
+                                        <code>0 0 1 * *</code> - First day of month<br>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <strong>Special characters:</strong><br>
+                                        <code>*</code> - Any value<br>
+                                        <code>*/n</code> - Every n units<br>
+                                        <code>n-m</code> - Range from n to m<br>
+                                        <code>n,m</code> - Specific values<br>
+                                    </div>
+                                </div>
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="description" class="form-label">
+                            <i class="fas fa-info-circle"></i> Description (Optional)
+                        </label>
+                        <textarea class="form-control" id="description" name="description" rows="2"
+                                  placeholder="Brief description of what this task does">{{ description or '' }}</textarea>
+                        <div class="form-text">Optional description to help you remember what this task does</div>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="/" class="btn btn-secondary me-md-2">
+                            <i class="fas fa-times"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Create Task
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Example Tasks Card -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5><i class="fas fa-lightbulb"></i> Example Tasks</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>System Tasks:</h6>
+                        <ul class="list-unstyled">
+                            <li><strong>File Backup:</strong><br>
+                                <small><code>python backup.py</code> - <code>0 2 * * *</code></small>
+                            </li>
+                            <li><strong>Log Cleanup:</strong><br>
+                                <small><code>del /q C:\logs\*.old</code> - <code>0 0 * * 0</code></small>
+                            </li>
+                            <li><strong>Health Check:</strong><br>
+                                <small><code>ping google.com</code> - <code>*/15 * * * *</code></small>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Email Tasks:</h6>
+                        <ul class="list-unstyled">
+                            <li><strong>Daily Report Email:</strong><br>
+                                <small><code>python email_sender.py daily_report</code> - <code>0 9 * * *</code></small>
+                            </li>
+                            <li><strong>Weekly Summary:</strong><br>
+                                <small><code>python email_sender.py weekly_summary</code> - <code>0 9 * * 1</code></small>
+                            </li>
+                            <li><strong>Custom Email:</strong><br>
+                                <small><code>python email_sender.py send_custom user@example.com "Subject" "Message"</code></small>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function setSchedule(cronExpression) {
+    document.getElementById('schedule').value = cronExpression;
+}
+
+function setEmailTask(taskType) {
+    const taskNameField = document.getElementById('task_name');
+    const commandField = document.getElementById('command');
+    const scheduleField = document.getElementById('schedule');
+    const descriptionField = document.getElementById('description');
+    
+    switch(taskType) {
+        case 'daily_report':
+            taskNameField.value = 'Daily Report Email';
+            commandField.value = 'python email_sender.py daily_report';
+            scheduleField.value = '0 9 * * *';
+            descriptionField.value = 'Send daily system report via email every morning';
+            break;
+        case 'weekly_summary':
+            taskNameField.value = 'Weekly Summary Email';
+            commandField.value = 'python email_sender.py weekly_summary';
+            scheduleField.value = '0 9 * * 1';
+            descriptionField.value = 'Send weekly summary report every Monday morning';
+            break;
+        case 'custom_email':
+            taskNameField.value = 'Custom Email';
+            commandField.value = 'python email_sender.py send_custom recipient@example.com "Subject Here" "Your message here"';
+            scheduleField.value = '0 9 * * *';
+            descriptionField.value = 'Send custom email (update recipient, subject, and message)';
+            break;
+        case 'alert':
+            taskNameField.value = 'System Alert Email';
+            commandField.value = 'python email_sender.py alert "System Status" "System check completed successfully"';
+            scheduleField.value = '0 */6 * * *';
+            descriptionField.value = 'Send system alert email every 6 hours';
+            break;
+    }
+}
+</script>
+{% endblock %}
