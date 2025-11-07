@@ -46,21 +46,8 @@ class TaskScheduler:
     def _schedule_task(self, task):
         """Schedule a task with APScheduler"""
         try:
-            # Parse cron expression
-            cron_parts = task['schedule'].split()
-            if len(cron_parts) != 5:
-                raise ValueError("Invalid cron expression. Expected 5 parts: minute hour day month day_of_week")
-            
-            minute, hour, day, month, day_of_week = cron_parts
-            
-            # Create cron trigger
-            trigger = CronTrigger(
-                minute=minute,
-                hour=hour,
-                day=day,
-                month=month,
-                day_of_week=day_of_week
-            )
+            # Create cron trigger from expression
+            trigger = CronTrigger.from_crontab(task['schedule'])
             
             # Add job to scheduler
             self.scheduler.add_job(
