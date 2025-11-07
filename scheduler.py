@@ -164,8 +164,8 @@ class TaskScheduler:
         # Get updated task
         task = get_task(task_id)
         
-        # If schedule changed, reschedule the job
-        if 'schedule' in updates or 'status' in updates:
+        # If schedule, command or status changed, reschedule the job
+        if 'schedule' in updates or 'status' in updates or 'command' in updates:
             try:
                 self.scheduler.remove_job(str(task_id))
             except:
