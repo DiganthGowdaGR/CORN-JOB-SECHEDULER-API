@@ -2,6 +2,9 @@
 
 A comprehensive backend service for scheduling and executing recurring tasks with a user-friendly web interface, built with FastAPI and APScheduler.
 
+## Architecture
+![Architecture](https://github.com/DiganthGowdaGR/CRON-JOB-SECHEDULER-API/blob/70cf4d2c26df573ba14da2324dbf22c24a89d911/Screenshot%202025-11-07%20084750.png)
+
 ## ✨ Features
 
 - 🌐 **Web Interface** - User-friendly dashboard for task management
