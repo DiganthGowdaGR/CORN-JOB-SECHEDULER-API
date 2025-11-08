@@ -1,4 +1,38 @@
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Database
 tasks.db
+*.db
+
+# Logs
 server.log
+*.log
+
+# Test outputs
 test_output.txt
+
+# Sensitive - Email credentials
+email_config.json
+
+# Generated data files
+system_report.json
+system_health_history.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
