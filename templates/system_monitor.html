@@ -1,0 +1,519 @@
+{% extends "base.html" %}
+
+{% block title %}System Monitor - Task Scheduler{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-desktop"></i> System Monitor</h1>
+    <div>
+        <button onclick="refreshData()" class="btn btn-primary me-2">
+            <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+        <button onclick="showScheduleModal()" class="btn btn-success">
+            <i class="fas fa-clock"></i> Schedule Health Check
+        </button>
+    </div>
+</div>
+
+<!-- Data Source Info -->
+<div class="alert alert-info mb-3" id="data-source-info">
+    <i class="fas fa-info-circle"></i> <span id="data-source-text">Loading...</span>
+</div>
+
+<div id="system-data">
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-3">Loading system information...</p>
+    </div>
+</div>
+
+<!-- Scheduled Health Checks -->
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-calendar-check"></i> Scheduled Health Checks</h5>
+    </div>
+    <div class="card-body">
+        <div id="scheduled-checks-list">
+            <div class="text-center py-3">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Schedule Modal -->
+<div class="modal fade" id="scheduleModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Schedule System Health Check</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="scheduleHealthCheckForm">
+                    <div class="mb-3">
+                        <label for="check_interval" class="form-label">Check Interval</label>
+                        <select class="form-select" id="check_interval" required>
+                            <option value="* * * * *">Every 1 minute</option>
+                            <option value="*/2 * * * *">Every 2 minutes</option>
+                            <option value="*/5 * * * *">Every 5 minutes</option>
+                            <option value="*/10 * * * *">Every 10 minutes</option>
+                            <option value="*/15 * * * *">Every 15 minutes</option>
+                            <option value="*/30 * * * *">Every 30 minutes</option>
+                            <option value="0 * * * *">Every 1 hour</option>
+                            <option value="0 */2 * * *">Every 2 hours</option>
+                            <option value="0 */3 * * *">Every 3 hours</option>
+                            <option value="0 */6 * * *">Every 6 hours</option>
+                            <option value="0 */12 * * *">Every 12 hours</option>
+                            <option value="0 9 * * *">Daily at 9 AM</option>
+                            <option value="0 9 * * 1">Weekly (Monday 9 AM)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="check_name" class="form-label">Check Name (Optional)</label>
+                        <input type="text" class="form-control" id="check_name" 
+                               placeholder="e.g., Production Server Health Check">
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> This will create a scheduled task that monitors system health at the specified interval. You can pause or delete it anytime.
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" onclick="scheduleHealthCheck()">
+                    <i class="fas fa-check"></i> Schedule Check
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function loadSystemData() {
+    fetch('/api/system-monitor')
+        .then(response => response.json())
+        .then(data => {
+            displaySystemData(data);
+            updateDataSourceInfo(data);
+        })
+        .catch(error => {
+            document.getElementById('system-data').innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle"></i> 
+                    Failed to load system data: ${error.message}
+                </div>
+            `;
+        });
+}
+
+function updateDataSourceInfo(data) {
+    const infoText = document.getElementById('data-source-text');
+    const timestamp = data.timestamp;
+    const now = new Date();
+    const checkTime = new Date(timestamp);
+    const diffMinutes = Math.floor((now - checkTime) / 1000 / 60);
+    
+    let message = '';
+    if (diffMinutes < 1) {
+        message = `📊 Showing data from scheduled health check executed <strong>just now</strong> (${timestamp})`;
+    } else if (diffMinutes < 60) {
+        message = `📊 Showing data from scheduled health check executed <strong>${diffMinutes} minute${diffMinutes > 1 ? 's' : ''} ago</strong> (${timestamp})`;
+    } else {
+        const diffHours = Math.floor(diffMinutes / 60);
+        message = `📊 Showing data from scheduled health check executed <strong>${diffHours} hour${diffHours > 1 ? 's' : ''} ago</strong> (${timestamp})`;
+    }
+    
+    infoText.innerHTML = message;
+}
+
+function displaySystemData(data) {
+    const healthColor = {
+        'Healthy': 'success',
+        'Warning': 'warning',
+        'Critical': 'danger'
+    }[data.health.status] || 'secondary';
+    
+    const cpuColor = data.cpu.usage_percent > 80 ? 'danger' : data.cpu.usage_percent > 60 ? 'warning' : 'success';
+    const memColor = data.memory.usage_percent > 85 ? 'danger' : data.memory.usage_percent > 70 ? 'warning' : 'success';
+    const diskColor = data.disk.usage_percent > 90 ? 'danger' : data.disk.usage_percent > 75 ? 'warning' : 'success';
+    
+    const html = `
+        <!-- System Info Header -->
+        <div class="card mb-4 border-primary">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-info-circle"></i> System Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <p class="mb-2"><strong><i class="fas fa-user"></i> Owner:</strong></p>
+                        <h4 class="text-primary">${data.system_owner}</h4>
+                    </div>
+                    <div class="col-md-3">
+                        <p class="mb-2"><strong><i class="fas fa-server"></i> Hostname:</strong></p>
+                        <h5>${data.hostname}</h5>
+                    </div>
+                    <div class="col-md-3">
+                        <p class="mb-2"><strong><i class="fas fa-laptop"></i> OS:</strong></p>
+                        <h6>${data.os}</h6>
+                    </div>
+                    <div class="col-md-3">
+                        <p class="mb-2"><strong><i class="fas fa-clock"></i> Last Updated:</strong></p>
+                        <h6>${data.timestamp}</h6>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Health Status -->
+        <div class="card mb-4 border-${healthColor}">
+            <div class="card-header bg-${healthColor} text-white">
+                <h5 class="mb-0"><i class="fas fa-heartbeat"></i> System Health: ${data.health.status}</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled mb-0">
+                    ${data.health.issues.map(issue => `
+                        <li><i class="fas fa-check-circle text-${healthColor}"></i> ${issue}</li>
+                    `).join('')}
+                </ul>
+            </div>
+        </div>
+
+        <!-- Resource Usage Cards -->
+        <div class="row">
+            <!-- CPU Card -->
+            <div class="col-md-4 mb-4">
+                <div class="card h-100 border-${cpuColor}">
+                    <div class="card-header bg-${cpuColor} text-white">
+                        <h5 class="mb-0"><i class="fas fa-microchip"></i> CPU Usage</h5>
+                    </div>
+                    <div class="card-body text-center">
+                        <div class="position-relative d-inline-block">
+                            <svg width="200" height="200">
+                                <circle cx="100" cy="100" r="80" fill="none" stroke="#e9ecef" stroke-width="20"/>
+                                <circle cx="100" cy="100" r="80" fill="none" 
+                                        stroke="${cpuColor === 'success' ? '#28a745' : cpuColor === 'warning' ? '#ffc107' : '#dc3545'}" 
+                                        stroke-width="20"
+                                        stroke-dasharray="${2 * Math.PI * 80}"
+                                        stroke-dashoffset="${2 * Math.PI * 80 * (1 - data.cpu.usage_percent / 100)}"
+                                        transform="rotate(-90 100 100)"/>
+                            </svg>
+                            <div class="position-absolute top-50 start-50 translate-middle">
+                                <h2 class="mb-0">${data.cpu.usage_percent}%</h2>
+                            </div>
+                        </div>
+                        <hr>
+                        <p class="mb-1"><strong>Cores:</strong> ${data.cpu.cores}</p>
+                        <p class="mb-0"><strong>Frequency:</strong> ${data.cpu.frequency_mhz} MHz</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Memory Card -->
+            <div class="col-md-4 mb-4">
+                <div class="card h-100 border-${memColor}">
+                    <div class="card-header bg-${memColor} text-white">
+                        <h5 class="mb-0"><i class="fas fa-memory"></i> Memory Usage</h5>
+                    </div>
+                    <div class="card-body text-center">
+                        <div class="position-relative d-inline-block">
+                            <svg width="200" height="200">
+                                <circle cx="100" cy="100" r="80" fill="none" stroke="#e9ecef" stroke-width="20"/>
+                                <circle cx="100" cy="100" r="80" fill="none" 
+                                        stroke="${memColor === 'success' ? '#28a745' : memColor === 'warning' ? '#ffc107' : '#dc3545'}" 
+                                        stroke-width="20"
+                                        stroke-dasharray="${2 * Math.PI * 80}"
+                                        stroke-dashoffset="${2 * Math.PI * 80 * (1 - data.memory.usage_percent / 100)}"
+                                        transform="rotate(-90 100 100)"/>
+                            </svg>
+                            <div class="position-absolute top-50 start-50 translate-middle">
+                                <h2 class="mb-0">${data.memory.usage_percent}%</h2>
+                            </div>
+                        </div>
+                        <hr>
+                        <p class="mb-1"><strong>Total:</strong> ${data.memory.total_gb} GB</p>
+                        <p class="mb-1"><strong>Used:</strong> ${data.memory.used_gb} GB</p>
+                        <p class="mb-0"><strong>Available:</strong> ${data.memory.available_gb} GB</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Disk Card -->
+            <div class="col-md-4 mb-4">
+                <div class="card h-100 border-${diskColor}">
+                    <div class="card-header bg-${diskColor} text-white">
+                        <h5 class="mb-0"><i class="fas fa-hdd"></i> Disk Usage</h5>
+                    </div>
+                    <div class="card-body text-center">
+                        <div class="position-relative d-inline-block">
+                            <svg width="200" height="200">
+                                <circle cx="100" cy="100" r="80" fill="none" stroke="#e9ecef" stroke-width="20"/>
+                                <circle cx="100" cy="100" r="80" fill="none" 
+                                        stroke="${diskColor === 'success' ? '#28a745' : diskColor === 'warning' ? '#ffc107' : '#dc3545'}" 
+                                        stroke-width="20"
+                                        stroke-dasharray="${2 * Math.PI * 80}"
+                                        stroke-dashoffset="${2 * Math.PI * 80 * (1 - data.disk.usage_percent / 100)}"
+                                        transform="rotate(-90 100 100)"/>
+                            </svg>
+                            <div class="position-absolute top-50 start-50 translate-middle">
+                                <h2 class="mb-0">${data.disk.usage_percent}%</h2>
+                            </div>
+                        </div>
+                        <hr>
+                        <p class="mb-1"><strong>Total:</strong> ${data.disk.total_gb} GB</p>
+                        <p class="mb-1"><strong>Used:</strong> ${data.disk.used_gb} GB</p>
+                        <p class="mb-0"><strong>Free:</strong> ${data.disk.free_gb} GB</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Progress Bars -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-chart-bar"></i> Resource Overview</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span><strong>CPU Usage</strong></span>
+                        <span>${data.cpu.usage_percent}%</span>
+                    </div>
+                    <div class="progress" style="height: 25px;">
+                        <div class="progress-bar bg-${cpuColor}" role="progressbar" 
+                             style="width: ${data.cpu.usage_percent}%" 
+                             aria-valuenow="${data.cpu.usage_percent}" aria-valuemin="0" aria-valuemax="100">
+                            ${data.cpu.usage_percent}%
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span><strong>Memory Usage</strong></span>
+                        <span>${data.memory.usage_percent}%</span>
+                    </div>
+                    <div class="progress" style="height: 25px;">
+                        <div class="progress-bar bg-${memColor}" role="progressbar" 
+                             style="width: ${data.memory.usage_percent}%" 
+                             aria-valuenow="${data.memory.usage_percent}" aria-valuemin="0" aria-valuemax="100">
+                            ${data.memory.usage_percent}%
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-0">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span><strong>Disk Usage</strong></span>
+                        <span>${data.disk.usage_percent}%</span>
+                    </div>
+                    <div class="progress" style="height: 25px;">
+                        <div class="progress-bar bg-${diskColor}" role="progressbar" 
+                             style="width: ${data.disk.usage_percent}%" 
+                             aria-valuenow="${data.disk.usage_percent}" aria-valuemin="0" aria-valuemax="100">
+                            ${data.disk.usage_percent}%
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('system-data').innerHTML = html;
+}
+
+function refreshData() {
+    // Show loading for system data
+    document.getElementById('system-data').innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3">Refreshing system information...</p>
+        </div>
+    `;
+    
+    // Show loading for scheduled checks
+    document.getElementById('scheduled-checks-list').innerHTML = `
+        <div class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    `;
+    
+    // Reload both system data and scheduled checks
+    loadSystemData();
+    loadScheduledChecks();
+}
+
+// Show schedule modal
+function showScheduleModal() {
+    const modal = new bootstrap.Modal(document.getElementById('scheduleModal'));
+    modal.show();
+}
+
+// Schedule health check
+function scheduleHealthCheck() {
+    const interval = document.getElementById('check_interval').value;
+    const name = document.getElementById('check_name').value || 'System Health Check';
+    
+    const taskData = {
+        task_name: name,
+        command: 'python system_monitor.py',
+        schedule: interval,
+        description: `Automated system health monitoring - checks every ${getIntervalDescription(interval)}`
+    };
+    
+    fetch('/tasks', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(taskData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        alert('✅ Health check scheduled successfully!');
+        bootstrap.Modal.getInstance(document.getElementById('scheduleModal')).hide();
+        document.getElementById('scheduleHealthCheckForm').reset();
+        loadScheduledChecks();
+    })
+    .catch(error => {
+        alert('❌ Failed to schedule: ' + error);
+    });
+}
+
+// Get interval description
+function getIntervalDescription(cron) {
+    const descriptions = {
+        '* * * * *': '1 minute',
+        '*/2 * * * *': '2 minutes',
+        '*/5 * * * *': '5 minutes',
+        '*/10 * * * *': '10 minutes',
+        '*/15 * * * *': '15 minutes',
+        '*/30 * * * *': '30 minutes',
+        '0 * * * *': '1 hour',
+        '0 */2 * * *': '2 hours',
+        '0 */3 * * *': '3 hours',
+        '0 */6 * * *': '6 hours',
+        '0 */12 * * *': '12 hours',
+        '0 9 * * *': 'day at 9 AM',
+        '0 9 * * 1': 'week (Monday 9 AM)'
+    };
+    return descriptions[cron] || 'custom interval';
+}
+
+// Load scheduled health checks
+function loadScheduledChecks() {
+    fetch('/tasks')
+        .then(response => response.json())
+        .then(tasks => {
+            const healthChecks = tasks.filter(t => 
+                t.command.includes('system_monitor.py')
+            );
+            
+            const listDiv = document.getElementById('scheduled-checks-list');
+            
+            if (healthChecks.length === 0) {
+                listDiv.innerHTML = '<p class="text-muted text-center">No scheduled health checks. Click "Schedule Health Check" to create one.</p>';
+                return;
+            }
+            
+            let html = '<div class="table-responsive"><table class="table table-hover"><thead><tr><th>Check Name</th><th>Interval</th><th>Status</th><th>Next Run</th><th>Last Run</th><th>Actions</th></tr></thead><tbody>';
+            
+            healthChecks.forEach(task => {
+                const statusBadge = task.status === 'active' ? 
+                    '<span class="badge bg-success">Running</span>' : 
+                    '<span class="badge bg-secondary">Paused</span>';
+                
+                const toggleButton = task.status === 'active' ?
+                    `<button class="btn btn-sm btn-warning" onclick="toggleHealthCheck(${task.id})" title="Pause">
+                        <i class="fas fa-pause"></i>
+                    </button>` :
+                    `<button class="btn btn-sm btn-success" onclick="toggleHealthCheck(${task.id})" title="Resume">
+                        <i class="fas fa-play"></i>
+                    </button>`;
+                
+                html += `
+                    <tr>
+                        <td><strong>${task.task_name}</strong></td>
+                        <td><code>${task.schedule}</code></td>
+                        <td>${statusBadge}</td>
+                        <td>${task.next_run || 'N/A'}</td>
+                        <td>${task.last_run || 'Never'}</td>
+                        <td>
+                            <a href="/tasks/${task.id}/view" class="btn btn-sm btn-primary" title="View Details">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            ${toggleButton}
+                            <button class="btn btn-sm btn-danger" onclick="deleteHealthCheck(${task.id})" title="Delete">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table></div>';
+            listDiv.innerHTML = html;
+        });
+}
+
+// Toggle health check (pause/resume)
+function toggleHealthCheck(taskId) {
+    fetch(`/tasks/${taskId}/toggle`, {
+        method: 'POST'
+    })
+    .then(response => {
+        if (response.ok) {
+            alert('✅ Health check updated successfully!');
+            loadScheduledChecks();
+        } else {
+            alert('❌ Failed to update health check');
+        }
+    })
+    .catch(error => {
+        alert('❌ Error: ' + error);
+    });
+}
+
+// Delete health check
+function deleteHealthCheck(taskId) {
+    if (!confirm('Are you sure you want to delete this scheduled health check?')) {
+        return;
+    }
+    
+    fetch(`/tasks/${taskId}/delete`, {
+        method: 'POST'
+    })
+    .then(response => {
+        if (response.ok) {
+            alert('✅ Health check deleted successfully!');
+            loadScheduledChecks();
+        } else {
+            alert('❌ Failed to delete health check');
+        }
+    })
+    .catch(error => {
+        alert('❌ Error: ' + error);
+    });
+}
+
+// Load data on page load
+loadSystemData();
+loadScheduledChecks();
+
+// Auto-refresh scheduled checks list every 30 seconds (to show updated next run times)
+setInterval(loadScheduledChecks, 30000);
+
+// Note: System data is NOT auto-refreshed - it shows the last scheduled check execution
+// User must click "Refresh" button to reload data from latest scheduled check
+</script>
+{% endblock %}
